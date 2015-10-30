@@ -5,15 +5,17 @@
 
   When using multiple servos to drive wheels for a mobile bot, the (servos) need
   calibration to get the vehicle to drive in a straight line.  This is a small
-  utility to collect the data and calculate the speed (rpm) of a servo.
+  utility to collect the data and calculate the speed (revolutions per second) of
+  a servo.
 
-  Usage: On startup (reset), block and allow the light source to reach the
-  photo-resistor (light dependent resitor) a few time.  Then, with the light NOT
-  blocked, close the switch to drive the calibration pin low.
+  Usage: On startup (reset), manually block and allow the light source to reach
+  the sensor a few time.  Then, with the light NOT blocked, close the switch to
+  drive the calibration pin low.  Timings will start with the following HIGH to
+  LOW transition of the sensor pin.
  */
 //
-unsigned const int SERIAL_SPEED = 115200;
-//300, 1200, 2400, 9600, 57600, 115200
+unsigned const int SERIAL_SPEED = 9600;
+//300, 1200, 2400, 4800, 9600, 14400, 19200, 28800, 38400, 57600, 115200
 unsigned const int SENSE_PIN = A0;
 unsigned const int CALIB_PIN = 5;// Check for the end of calibration mode
 unsigned const int MAX_ADC = 1023;// ADC == analog to digital conversion
@@ -34,6 +36,9 @@ unsigned int revolutions = 0;
 void setup() {
   pinMode(CALIB_PIN, INPUT);
   Serial.begin(SERIAL_SPEED);
+  while (!Serial) {
+    ; // wait for serial port to connect. Needed for Leonardo only
+  }
 
   getActiveSenseRange();
   calibrateBooleanSense();
@@ -43,24 +48,29 @@ void setup() {
 
 void loop() {
   boolean senseState;
-  unsigned long revolutionEnd;
-  float revSpeed, averageSpeed;
+  unsigned long revolutionEnd, revolutionInterval, totalInterval;
+  double revSpeed, averageSpeed;
 
   senseState = getAdcBoolean();
   if (adcState && !senseState) {
-    // The ADC reading just when from HIGH to LOW
+    // The ADC reading just went from HIGH to LOW
     // Increment revolution count, and calculate the speed
     revolutionEnd = millis();
     revolutions += 1;
+    revolutionInterval = revolutionEnd - revolutionStart;
+    totalInterval = revolutionEnd - startTime;
     // Single turn speed (rpm)
-    revSpeed = 60000.0 / (revolutionEnd - revolutionStart);
-    averageSpeed = revolutions * 60000.0 / (revolutionEnd - startTime);
+    revSpeed = 1000.0 / revolutionInterval; // revolutions/second
+    averageSpeed = revolutions * 1000.0 / totalInterval;
     Serial.print("Revolution ");
     Serial.print(revolutions);
+    Serial.print("; interval: ");
+    Serial.print(revolutionInterval);
     Serial.print("; turn speed: ");
-    Serial.print(fixedPoint(revSpeed));
+    Serial.print(revSpeed, 3);
     Serial.print("; average speed: ");
-    Serial.println(fixedPoint(averageSpeed));
+    Serial.print(averageSpeed, 3);
+    Serial.println(" rev/second");
     revolutionStart = revolutionEnd;
   }
   adcState = senseState;
